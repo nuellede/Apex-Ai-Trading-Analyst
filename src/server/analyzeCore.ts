@@ -18,7 +18,7 @@ export function extractJSON(text: string): any {
       const slice = cleaned.slice(firstBrace, lastBrace + 1);
       return JSON.parse(slice);
     }
-    throw new Error('Failed to parse model output into structured JSON: ' + (err as Error).message);
+    throw new Error('Gagal mengurai respons model ke format JSON terstruktur: ' + (err as Error).message);
   }
 }
 
@@ -46,16 +46,19 @@ export async function processChartAnalysis(payload: AnalyzePayload) {
   } = payload;
 
   if (!images || !Array.isArray(images) || images.length === 0) {
-    throw new Error('At least one chart screenshot image is required.');
+    throw new Error('Minimal satu screenshot grafik candlestick trading harus diunggah.');
   }
 
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) {
-    throw new Error('GEMINI_API_KEY environment variable is not configured on the server. Please check your Vercel or environment settings.');
+    throw new Error(
+      'Kunci GEMINI_API_KEY belum dikonfigurasi di server. Jika Anda membuka di Vercel: Buka Vercel Dashboard > Project Settings > Environment Variables > Tambahkan GEMINI_API_KEY lalu klik Redeploy.'
+    );
   }
 
-  // Model selection (default to gemini-3.8-flash, configurable via env)
-  const modelName = process.env.GEMINI_MODEL || 'gemini-3.8-flash';
+  // Primary and fallback models
+  const primaryModel = process.env.GEMINI_MODEL || 'gemini-3.8-flash';
+  const fallbackModel = 'gemini-flash-latest';
 
   const ai = new GoogleGenAI({
     apiKey,
@@ -318,20 +321,57 @@ OUTPUT MUST BE VALID STRICT JSON ONLY matching the following schema without prea
 
   parts.push({ text: analysisPrompt });
 
-  const response = await ai.models.generateContent({
-    model: modelName,
-    contents: {
-      parts,
-    },
-    config: {
-      responseMimeType: 'application/json',
-      temperature: 0.2, // Low temperature for maximum analytical consistency and precision
-    },
-  });
+  // Call Gemini model with automatic retry on temporary high demand / rate limit (503/429)
+  let rawText = '';
+  let lastError: any = null;
 
-  const rawText = response.text || '';
+  const modelsToTry = [primaryModel, fallbackModel];
+
+  for (const currentModel of modelsToTry) {
+    for (let attempt = 1; attempt <= 2; attempt++) {
+      try {
+        const response = await ai.models.generateContent({
+          model: currentModel,
+          contents: {
+            parts,
+          },
+          config: {
+            responseMimeType: 'application/json',
+            temperature: 0.2, // Low temperature for maximum analytical consistency and precision
+          },
+        });
+
+        rawText = response.text || '';
+        if (rawText) {
+          lastError = null;
+          break;
+        }
+      } catch (err: any) {
+        lastError = err;
+        const errMsg = err?.message || '';
+        // If 503 (high demand) or 429 (rate limit), pause briefly before retry
+        if (errMsg.includes('503') || errMsg.includes('high demand') || errMsg.includes('429')) {
+          await new Promise((r) => setTimeout(r, 1500 * attempt));
+          continue;
+        }
+        // Non-recoverable error for this model, break to fallback model
+        break;
+      }
+    }
+    if (rawText) break;
+  }
+
   if (!rawText) {
-    throw new Error('The AI model returned an empty analysis response.');
+    if (lastError) {
+      const msg = lastError.message || '';
+      if (msg.includes('503') || msg.includes('high demand')) {
+        throw new Error(
+          'Model Gemini sedang mengalami lonjakan antrean trafik tinggi sementara dari Google. Silakan klik "Run Apex Technical Analysis" sekali lagi dalam beberapa detik.'
+        );
+      }
+      throw new Error(`Gagal memproses analisis chart: ${msg}`);
+    }
+    throw new Error('Model AI mengembalikan respons analisis kosong.');
   }
 
   const structuredData = extractJSON(rawText);
