@@ -1,0 +1,6 @@
+{
+  "name": "Apex AI Trading Analyst",
+  "description": "Professional AI multimodal technical analysis platform for Forex & Gold trading charts with market structure recognition, multi-timeframe synthesis, and systematic risk management.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
