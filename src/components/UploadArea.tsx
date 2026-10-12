@@ -126,15 +126,15 @@ export const UploadArea: React.FC<UploadAreaProps> = ({
       img.onload = () => {
         let targetWidth = img.width;
         let targetHeight = img.height;
-        const maxDim = 1920;
+        const maxDim = 1280;
 
-        if (targetWidth > maxDim || targetHeight > maxDim) {
+        if (targetWidth > maxDim || targetHeight > maxDim || rawDataUri.length > 800000) {
           if (targetWidth > targetHeight) {
-            targetHeight = Math.round((targetHeight * maxDim) / targetWidth);
-            targetWidth = maxDim;
+            targetHeight = Math.round((targetHeight * Math.min(maxDim, targetWidth)) / targetWidth);
+            targetWidth = Math.min(maxDim, targetWidth);
           } else {
-            targetWidth = Math.round((targetWidth * maxDim) / targetHeight);
-            targetHeight = maxDim;
+            targetWidth = Math.round((targetWidth * Math.min(maxDim, targetHeight)) / targetHeight);
+            targetHeight = Math.min(maxDim, targetHeight);
           }
           const canvas = document.createElement('canvas');
           canvas.width = targetWidth;
@@ -142,7 +142,7 @@ export const UploadArea: React.FC<UploadAreaProps> = ({
           const ctx = canvas.getContext('2d');
           if (ctx) {
             ctx.drawImage(img, 0, 0, targetWidth, targetHeight);
-            const optimizedDataUri = canvas.toDataURL('image/jpeg', 0.92);
+            const optimizedDataUri = canvas.toDataURL('image/jpeg', 0.85);
             const newImg: ChartImagePayload = {
               id: `img-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
               data: optimizedDataUri,

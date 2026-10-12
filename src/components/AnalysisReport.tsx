@@ -21,7 +21,9 @@ import {
   Info,
   Sliders,
   Check,
+  Languages,
 } from 'lucide-react';
+import { VoiceNarrator } from './VoiceNarrator';
 
 interface AnalysisReportProps {
   result: FullAnalysisResult;
@@ -36,6 +38,9 @@ export const AnalysisReport: React.FC<AnalysisReportProps> = ({
   const [copiedPlan, setCopiedPlan] = useState(false);
   const [activeScenarioTab, setActiveScenarioTab] = useState<'preferred' | 'buy' | 'sell'>('preferred');
   const [showIndicatorsDetail, setShowIndicatorsDetail] = useState(false);
+  const [reportLang, setReportLang] = useState<'id' | 'en'>('id');
+
+  const t = (en: string, id: string) => (reportLang === 'id' ? id : en);
 
   const {
     audit,
@@ -148,15 +153,41 @@ Timestamp: ${metadata.analysisTimestamp}
           </p>
         </div>
 
-        {/* Action Buttons */}
-        <div className="flex items-center gap-2">
+        {/* Action Buttons & Language Switcher */}
+        <div className="flex flex-wrap items-center gap-2">
+          {/* Language Switcher (Indonesian vs English) */}
+          <div className="flex items-center bg-slate-900 rounded-lg p-0.5 border border-slate-700 text-xs font-mono">
+            <button
+              onClick={() => setReportLang('id')}
+              className={`flex items-center gap-1 px-2.5 py-1 rounded transition-colors cursor-pointer ${
+                reportLang === 'id'
+                  ? 'bg-cyan-500/20 text-cyan-300 font-bold border border-cyan-500/40'
+                  : 'text-slate-400 hover:text-white'
+              }`}
+              title="Terjemahkan Laporan ke Bahasa Indonesia"
+            >
+              <span>🇮🇩 Bahasa Indonesia</span>
+            </button>
+            <button
+              onClick={() => setReportLang('en')}
+              className={`flex items-center gap-1 px-2 py-1 rounded transition-colors cursor-pointer ${
+                reportLang === 'en'
+                  ? 'bg-cyan-500/20 text-cyan-300 font-bold border border-cyan-500/40'
+                  : 'text-slate-400 hover:text-white'
+              }`}
+              title="Switch Report to English"
+            >
+              <span>🇬🇧 English</span>
+            </button>
+          </div>
+
           <button
             onClick={handleCopyPlan}
             className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-mono rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 transition-colors cursor-pointer"
             title="Copy systematic trading plan to clipboard"
           >
             {copiedPlan ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5 text-cyan-400" />}
-            <span>{copiedPlan ? 'Copied Plan!' : 'Copy Plan'}</span>
+            <span>{copiedPlan ? t('Tersalin!', 'Tersalin!') : t('Copy Plan', 'Salin Rencana')}</span>
           </button>
           <button
             onClick={() =>
@@ -171,7 +202,7 @@ Timestamp: ${metadata.analysisTimestamp}
             title="Transfer trade numbers to Risk Management Calculator"
           >
             <Calculator className="w-3.5 h-3.5" />
-            <span>Load to Calculator</span>
+            <span>{t('Load to Calculator', 'Kirim ke Kalkulator')}</span>
           </button>
           <button
             onClick={handlePrint}
@@ -179,10 +210,13 @@ Timestamp: ${metadata.analysisTimestamp}
             title="Print or export PDF report"
           >
             <Printer className="w-3.5 h-3.5" />
-            <span>Export / Print</span>
+            <span>{t('Export / Print', 'Cetak / PDF')}</span>
           </button>
         </div>
       </div>
+
+      {/* VOICE NARRATOR PLAYER (Audio AI Text-To-Speech) */}
+      <VoiceNarrator result={result} />
 
       {/* WARNING NOTIFICATIONS IF APPLICABLE */}
       {audit.instrumentMismatchDetected && audit.mismatchWarning && (
@@ -190,11 +224,14 @@ Timestamp: ${metadata.analysisTimestamp}
           <AlertTriangle className="w-5 h-5 text-amber-400 shrink-0 mt-0.5" />
           <div className="space-y-1">
             <h4 className="font-bold uppercase tracking-wider text-amber-300">
-              Discrepancy Warning: Instrument Mismatch Detected
+              {t('Discrepancy Warning: Instrument Mismatch Detected', 'Peringatan Ketidaksesuaian Pasangan Mata Uang')}
             </h4>
             <p className="leading-relaxed">{audit.mismatchWarning}</p>
             <p className="text-[11px] text-amber-400/80">
-              Chart appears to show <strong>{audit.instrumentIdentified}</strong> while user selected <strong>{metadata.analyzedInstrument}</strong>.
+              {t(
+                `Chart appears to show ${audit.instrumentIdentified} while user selected ${metadata.analyzedInstrument}.`,
+                `Grafik terdeteksi menampilkan ${audit.instrumentIdentified} sedangkan instrumen dipilih adalah ${metadata.analyzedInstrument}.`
+              )}
             </p>
           </div>
         </div>
@@ -204,7 +241,7 @@ Timestamp: ${metadata.analysisTimestamp}
         <div className="p-3 rounded-xl bg-rose-950/40 border border-rose-700 text-rose-200 text-xs flex items-center gap-3">
           <ShieldAlert className="w-4 h-4 text-rose-400 shrink-0" />
           <span>
-            <strong>High Volatility Warning:</strong> Large expansion candle or high-frequency news event detected on chart. Re-check real-time broker spreads before executing.
+            <strong>{t('High Volatility Warning:', 'Peringatan Volatilitas Ekstrem:')}</strong> {t('Large expansion candle or high-frequency news event detected on chart. Re-check real-time broker spreads before executing.', 'Candle ekspansi besar atau rilis berita berdampak tinggi terdeteksi di grafik. Periksa spread broker sebelum eksekusi.')}
           </span>
         </div>
       )}
@@ -215,11 +252,11 @@ Timestamp: ${metadata.analysisTimestamp}
           <div className="flex items-center gap-2">
             <span className="w-2 h-2 rounded-full bg-cyan-400" />
             <h3 className="text-xs font-bold uppercase tracking-wider text-slate-300 font-mono">
-              01. Executive Summary
+              {t('01. Executive Summary', '01. Ringkasan Eksekutif Analisis')}
             </h3>
           </div>
           <div className="flex items-center gap-2 text-xs font-mono text-slate-400">
-            <span>Primary Bias:</span>
+            <span>{t('Primary Bias:', 'Bias Utama:')}</span>
             {getBiasBadge(marketBias.primaryTrend)}
           </div>
         </div>
@@ -237,11 +274,11 @@ Timestamp: ${metadata.analysisTimestamp}
               <div className="flex items-center gap-2">
                 <Target className="w-4 h-4 text-cyan-400" />
                 <h3 className="text-xs font-bold uppercase tracking-wider text-slate-300 font-mono">
-                  Preferred Trading Setup
+                  {t('Preferred Trading Setup', 'Setup Trading Pilihan Utama')}
                 </h3>
               </div>
               <div className="flex items-center gap-2">
-                <span className="text-xs text-slate-400 font-mono">Conviction:</span>
+                <span className="text-xs text-slate-400 font-mono">{t('Conviction:', 'Keyakinan:')}</span>
                 <span className="text-xs font-semibold font-mono px-2 py-0.5 rounded bg-slate-800 text-cyan-300 border border-slate-700">
                   {preferredSetup.biasStrength}
                 </span>
@@ -251,7 +288,7 @@ Timestamp: ${metadata.analysisTimestamp}
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-4 rounded-lg bg-slate-900/90 border border-slate-800 mb-4">
               <div>
                 <span className="text-[11px] font-mono uppercase tracking-wider text-slate-500">
-                  Recommended Action
+                  {t('Recommended Action', 'Rekomendasi Tindakan')}
                 </span>
                 <div className="flex items-center gap-2 mt-0.5">
                   <span
@@ -295,17 +332,17 @@ Timestamp: ${metadata.analysisTimestamp}
 
             <div className="space-y-2 text-xs text-slate-300">
               <p>
-                <strong className="text-slate-200">Execution Trigger:</strong> {preferredSetup.executionTrigger}
+                <strong className="text-slate-200">{t('Execution Trigger:', 'Pemicu Eksekusi:')}</strong> {preferredSetup.executionTrigger}
               </p>
               <p>
-                <strong className="text-slate-200">Cancellation / Invalidation:</strong>{' '}
+                <strong className="text-slate-200">{t('Cancellation / Invalidation:', 'Kondisi Batal / Invalidation:')}</strong>{' '}
                 <span className="text-rose-300">{preferredSetup.expirationOrCancelCondition}</span>
               </p>
             </div>
           </div>
 
           <div className="pt-4 mt-4 border-t border-slate-800/80 flex items-center justify-between text-xs font-mono text-slate-400">
-            <span>R:R Profile: TP1 ({preferredSetup.riskRewardTP1}) · TP2 ({preferredSetup.riskRewardTP2}) · TP3 ({preferredSetup.riskRewardTP3})</span>
+            <span>{t('R:R Profile:', 'Profil Risk:Reward:')} TP1 ({preferredSetup.riskRewardTP1}) · TP2 ({preferredSetup.riskRewardTP2}) · TP3 ({preferredSetup.riskRewardTP3})</span>
           </div>
         </div>
 
@@ -314,9 +351,9 @@ Timestamp: ${metadata.analysisTimestamp}
           <div>
             <div className="flex items-center justify-between border-b border-slate-800 pb-2 mb-3">
               <h3 className="text-xs font-bold uppercase tracking-wider text-slate-300 font-mono">
-                14. Setup Quality Score
+                {t('14. Setup Quality Score', '14. Skor Kualitas Setup')}
               </h3>
-              <span className="text-[10px] text-slate-500 font-mono">0-100 Internal</span>
+              <span className="text-[10px] text-slate-500 font-mono">{t('0-100 Internal', 'Skor 0-100')}</span>
             </div>
 
             {/* Score Ring / Number */}

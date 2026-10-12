@@ -13,8 +13,8 @@ import {
 interface HeaderProps {
   currentMode: TradingMode;
   onModeChange: (mode: TradingMode) => void;
-  activeTab: 'analyzer' | 'seasonality' | 'calculator';
-  onTabChange: (tab: 'analyzer' | 'seasonality' | 'calculator') => void;
+  activeTab: 'analyzer' | 'livechart' | 'seasonality' | 'calculator';
+  onTabChange: (tab: 'analyzer' | 'livechart' | 'seasonality' | 'calculator') => void;
   onOpenHistory: () => void;
   historyCount: number;
   onOpenInstallModal: () => void;
@@ -157,6 +157,17 @@ export const Header: React.FC<HeaderProps> = ({
           >
             <BarChart3 className="w-3.5 h-3.5 text-cyan-400" />
             <span>Chart Analyzer</span>
+          </button>
+          <button
+            onClick={() => onTabChange('livechart')}
+            className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md transition-all cursor-pointer ${
+              activeTab === 'livechart'
+                ? 'bg-slate-800 text-white shadow-sm border border-slate-700'
+                : 'text-slate-400 hover:text-slate-200'
+            }`}
+          >
+            <Activity className="w-3.5 h-3.5 text-emerald-400" />
+            <span>Live Chart (TradingView)</span>
           </button>
           <button
             onClick={() => onTabChange('seasonality')}

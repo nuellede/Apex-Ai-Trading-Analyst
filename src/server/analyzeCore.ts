@@ -52,13 +52,9 @@ export async function processChartAnalysis(payload: AnalyzePayload) {
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) {
     throw new Error(
-      'Kunci GEMINI_API_KEY belum dikonfigurasi di server. Jika Anda membuka di Vercel: Buka Vercel Dashboard > Project Settings > Environment Variables > Tambahkan GEMINI_API_KEY lalu klik Redeploy.'
+      'Kunci GEMINI_API_KEY belum dikonfigurasi di server. Pada Vercel, buka Project Settings > Environment Variables > tambahkan GEMINI_API_KEY lalu klik Redeploy.'
     );
   }
-
-  // Primary and fallback models
-  const primaryModel = process.env.GEMINI_MODEL || 'gemini-3.8-flash';
-  const fallbackModel = 'gemini-flash-latest';
 
   const ai = new GoogleGenAI({
     apiKey,
@@ -95,104 +91,36 @@ export async function processChartAnalysis(payload: AnalyzePayload) {
     });
 
     parts.push({
-      text: `[IMAGE ${idx + 1} CONTEXT: User label or timeframe hint: "${img.label || 'Screenshot ' + (idx + 1)}"]`,
+      text: `[CHART IMAGE ${idx + 1}: ${img.label || 'Timeframe screenshot'}]`,
     });
   });
 
   const isMultiTF = images.length > 1;
 
   const analysisPrompt = `
-You are the quantitative algorithmic core of "APEX AI TRADING ANALYST", a Senior Quantitative Trading Analyst, Market Structure Specialist, and Technical Analysis Engine.
+You are the quantitative trading analyst core of "APEX AI TRADING ANALYST".
+Analyze the attached trading chart screenshot(s) with visual objectivity and strict risk discipline.
 
-Analyze the uploaded trading chart screenshot(s) with clinical precision, visual objectivity, and strict risk discipline.
+INPUT CONTEXT:
+- Target Instrument: ${selectedInstrument || 'Auto-Detect'}
+- Timeframe: ${selectedTimeframe || 'Auto-Detect'}
+- Trading Mode: ${tradingMode || 'INTRADAY'} (SCALPING: M1-M15, INTRADAY: M15-H4, SWING: H4-W1)
+- Stated Reference Price: ${knownPrice ? knownPrice : 'Read from chart'}
+- Notes: ${userNotes ? userNotes : 'None'}
+- Multi-Timeframe Submission: ${isMultiTF ? 'YES' : 'NO (Single TF - do not invent multi-TF confirmation)'}
 
-USER PARAMETERS:
-- Target Instrument Selected by User: ${selectedInstrument || 'Auto-Detect'}
-- Timeframe Selected by User: ${selectedTimeframe || 'Auto-Detect'}
-- Trading Mode Requested: ${tradingMode || 'INTRADAY'} (Available: SCALPING [M1/M5/M15], INTRADAY [M15/H1/H4], SWING [H4/D1/W1])
-- Current Reference Price Stated by User: ${knownPrice ? knownPrice : 'None specified (read visually from chart)'}
-- User Trading Notes / Focus: ${userNotes ? userNotes : 'None provided'}
-- Multi-Timeframe Submission: ${isMultiTF ? `YES (${images.length} screenshots submitted)` : 'NO (Single screenshot submitted - do NOT invent multi-timeframe confirmation; state clearly that only this timeframe is available)'}
+REQUIREMENTS:
+1. Audit image quality (candlestick legibility, price scale readability, symbol match). Flag mismatch if chart differs from "${selectedInstrument || ''}".
+2. Market structure (HH, HL, LH, LL, BOS, CHoCH, MSS, Supply/Demand, Sweeps, FVG).
+3. Indicators visible on chart (mark missing as "Tidak tersedia").
+4. Critical resistance & support zones with exact price ranges, invalidation levels.
+5. Dual scenarios: BUY Setup and SELL Setup with Entry, SL, TP1, TP2, TP3, R:R.
+6. Preferred Setup: "BUY", "SELL", or "WAIT / NO TRADE".
+7. 7-Rubric Quality Score (0-100 total): structure(20), trend(20), proximity(15), confirmation(15), momentum(10), rr(10), multiTF(10).
+8. Invalidation and No-Trade conditions.
+9. BAHASA INDONESIA: Sampaikan seluruh narasi (executiveSummary, biasSummary, marketStructure, technicalRationale, confirmationTrigger, qualityNotes, alternativeScenario, invalidationConditions, noTradeConditions, riskManagementNotes) dalam BAHASA INDONESIA yang profesional dan terstruktur, dengan tetap mempertahankan istilah baku trading (Bullish, Bearish, Support, Resistance, BOS, CHoCH, Liquidity Sweep, FVG, Order Block, Retest, Entry, SL, TP).
 
-CORE INSTRUCTIONS:
-1. IMAGE QUALITY AUDIT:
-   - Check if candlesticks are sharp, price axis scale is clearly legible, timeframe text is readable, pair symbol is visible, and the latest active candle area is uncropped.
-   - If price scale is blurry or unreadable, flag imageQualityIssues and do NOT invent fake precision numbers. State what must be clarified.
-2. INSTRUMENT & TIMEFRAME VERIFICATION:
-   - Read the exact pair symbol and timeframe from the chart image (e.g. TradingView watermark, MT4/MT5 upper-left title, price scale).
-   - If the detected pair differs from "${selectedInstrument || ''}", set "instrumentMismatchDetected": true, "detectedInstrument": "<Detected>", and "mismatchWarning": "<Explicit Warning message explaining the discrepancy>".
-   - If pair cannot be identified from image, set detectedInstrument to "Unidentified / Relies on User Input".
-3. MARKET STRUCTURE RECOGNITION (Only what is visually proven):
-   - Identify Swing Highs, Swing Lows, Higher Highs (HH), Higher Lows (HL), Lower Highs (LH), Lower Lows (LL).
-   - Classify structure: Uptrend, Downtrend, or Sideways/Ranging Consolidation.
-   - Look for genuine structural events: BOS (Break of Structure), CHoCH (Change of Character), MSS (Market Structure Shift), Liquidity Sweeps, Equal Highs/Lows (EQH/EQL), Fair Value Gaps (FVG) or Supply/Demand zones, Rejections.
-   - Separate visible facts from speculative hypotheses. Do NOT state institutional or smart money activity as absolute certainty.
-4. TECHNICAL INDICATORS AUDIT:
-   - Only report indicators visible on chart (e.g., EMA 20/50/200, SMA, RSI, MACD, Bollinger Bands, ATR, VWAP, Volume, Fibonacci).
-   - If an indicator is not on the chart, explicitly mark status as "Tidak tersedia / Not visible on chart" and do NOT invent numerical readings.
-5. MARKET STRUCTURE & CRITICAL ZONES:
-   - Primary Trend (Bullish, Bearish, Neutral)
-   - Secondary Trend (Short-term pullbacks or counter-trends)
-   - Current Market Phase (Trending, Ranging Consolidation, Breakout Phase, Reversal Candidate)
-   - Critical Resistance Zone (low, high, timeframe, technical rationale, calibrated confidence %)
-   - Critical Support Zone (low, high, timeframe, technical rationale, calibrated confidence %)
-   - Bullish Invalidation Level (exact price that kills bullish thesis)
-   - Bearish Invalidation Level (exact price that kills bearish thesis)
-   - Breakout Confirmation Zone & Potential Reversal Zone
-   - No-Trade Zone (range where chop will cause whipsaws)
-6. MULTI-TIMEFRAME SYNTHESIS:
-   - Produce a matrix table array of timeframes evaluated.
-   - If single screenshot, list the single timeframe and explicitly mark other higher/lower timeframes as "Insufficient Data - Requires separate timeframe screenshot".
-   - If conflicting signals exist, state the conflict without bias and reduce setup quality.
-7. ENTRY ENGINE (BUY & SELL SCENARIOS):
-   - Provide Scenario A: BUY Setup (Entry range, SL, TP1, TP2, TP3, R:R, Trigger condition, Invalidation level).
-   - Provide Scenario B: SELL Setup (Entry range, SL, TP1, TP2, TP3, R:R, Trigger condition, Invalidation level).
-   - Strict logic: BUY SL must be below Entry, TP above Entry. SELL SL must be above Entry, TP below Entry.
-   - Entry Type: "Aggressive Entry", "Confirmation Entry", or "Retest Entry".
-   - Determine PREFERRED SETUP ("BUY", "SELL", or "WAIT / NO TRADE"). Prioritize the side with clear technical confluence.
-   - If market is in an unviable chop or high risk: set preferredSetup to "WAIT / NO TRADE".
-8. STOP LOSS & TAKE PROFIT PRECISION:
-   - Format prices properly: Gold (XAUUSD) 2 decimals (e.g. 2652.40); JPY pairs 3 decimals (e.g. 152.350); EURUSD/GBPUSD/others 5 decimals (e.g. 1.08450).
-   - Calculate Risk Distance, Reward Distance, and Risk-to-Reward (R:R) for TP1, TP2, TP3.
-9. TRADE SETUP QUALITY ENGINE (Score 0-100):
-   - Transparent rubric scores:
-     * marketStructureClarity (0-20)
-     * trendAlignment (0-20)
-     * proximityToCriticalZone (0-15)
-     * entryConfirmationQuality (0-15)
-     * momentumAlignment (0-10)
-     * riskRewardScore (0-10)
-     * multiTimeframeConfluence (0-10)
-     Total Score = sum of the 7 components.
-   - Label:
-     * 85-100: "High Confluence"
-     * 70-84: "Good Confluence"
-     * 50-69: "Moderate Confluence"
-     * 0-49: "Weak Setup / No Trade"
-   - Explicit disclaimer that this is an internal technical confluence score, NOT a win-rate or financial guarantee.
-10. FULL 19-SECTION REPORT:
-   Provide complete, detailed answers for all 19 mandated sections:
-   1. executiveSummary
-   2. instrumentAndScreenshotDetails
-   3. currentMarketBias
-   4. marketStructure
-   5. trendAnalysis
-   6. supportAndResistance
-   7. criticalZones
-   8. multiTimeframeConfirmation
-   9. buyScenario
-   10. sellScenario
-   11. preferredTradingSetup
-   12. entrySlTpLevels
-   13. riskToRewardAnalysis
-   14. setupQualityScore
-   15. invalidationConditions
-   16. noTradeConditions
-   17. alternativeScenario
-   18. missingDataAndLimitations
-   19. riskManagementNotes
-
-OUTPUT MUST BE VALID STRICT JSON ONLY matching the following schema without preamble:
+Respond strictly in valid JSON matching this schema:
 {
   "audit": {
     "isImageClear": boolean,
@@ -216,8 +144,8 @@ OUTPUT MUST BE VALID STRICT JSON ONLY matching the following schema without prea
   "executiveSummary": string,
   "marketBias": {
     "primaryTrend": "Bullish" | "Bearish" | "Sideways / Neutral",
-    "secondaryTrend": "Bullish Pullback" | "Bearish Retracement" | "Consolidation" | "Trend Continuation",
-    "currentMarketPhase": "Accumulation" | "Markup (Bullish Trend)" | "Distribution" | "Markdown (Bearish Trend)" | "Consolidation Range" | "Reversal Candidate",
+    "secondaryTrend": string,
+    "currentMarketPhase": string,
     "biasSummary": string
   },
   "marketStructure": {
@@ -321,57 +249,53 @@ OUTPUT MUST BE VALID STRICT JSON ONLY matching the following schema without prea
 
   parts.push({ text: analysisPrompt });
 
-  // Call Gemini model with automatic retry on temporary high demand / rate limit (503/429)
   let rawText = '';
   let lastError: any = null;
 
-  const modelsToTry = [primaryModel, fallbackModel];
+  // Prioritize fast, high-availability models: gemini-flash-latest, gemini-3.1-flash-lite, then gemini-3.8-flash
+  const modelsToTry = [
+    process.env.GEMINI_MODEL || 'gemini-flash-latest',
+    'gemini-3.1-flash-lite',
+    'gemini-3.8-flash',
+  ];
 
   for (const currentModel of modelsToTry) {
-    for (let attempt = 1; attempt <= 2; attempt++) {
-      try {
-        const response = await ai.models.generateContent({
-          model: currentModel,
-          contents: {
-            parts,
-          },
-          config: {
-            responseMimeType: 'application/json',
-            temperature: 0.2, // Low temperature for maximum analytical consistency and precision
-          },
-        });
+    try {
+      const response = await ai.models.generateContent({
+        model: currentModel,
+        contents: {
+          parts,
+        },
+        config: {
+          responseMimeType: 'application/json',
+          temperature: 0.1,
+        },
+      });
 
-        rawText = response.text || '';
-        if (rawText) {
-          lastError = null;
-          break;
-        }
-      } catch (err: any) {
-        lastError = err;
-        const errMsg = err?.message || '';
-        // If 503 (high demand) or 429 (rate limit), pause briefly before retry
-        if (errMsg.includes('503') || errMsg.includes('high demand') || errMsg.includes('429')) {
-          await new Promise((r) => setTimeout(r, 1500 * attempt));
-          continue;
-        }
-        // Non-recoverable error for this model, break to fallback model
+      rawText = response.text || '';
+      if (rawText) {
+        lastError = null;
         break;
       }
+    } catch (err: any) {
+      lastError = err;
+      console.warn(`Model ${currentModel} returned: ${err?.message || err}. Trying next fallback model...`);
     }
-    if (rawText) break;
   }
 
   if (!rawText) {
-    if (lastError) {
-      const msg = lastError.message || '';
-      if (msg.includes('503') || msg.includes('high demand')) {
-        throw new Error(
-          'Model Gemini sedang mengalami lonjakan antrean trafik tinggi sementara dari Google. Silakan klik "Run Apex Technical Analysis" sekali lagi dalam beberapa detik.'
-        );
-      }
-      throw new Error(`Gagal memproses analisis chart: ${msg}`);
+    const msg = lastError?.message || '';
+    if (msg.includes('503') || msg.includes('high demand')) {
+      throw new Error(
+        'Server model AI sedang mengalami antrean trafik tinggi dari Google. Silakan klik "Run Apex Technical Analysis" sekali lagi dalam beberapa detik.'
+      );
     }
-    throw new Error('Model AI mengembalikan respons analisis kosong.');
+    if (msg.includes('timeout') || msg.includes('504')) {
+      throw new Error(
+        'Proses analisis mencapai batas waktu (timeout). Silakan gunakan ukuran gambar yang lebih ringkas atau coba kembali.'
+      );
+    }
+    throw new Error(msg || 'Model AI mengembalikan respons analisis kosong.');
   }
 
   const structuredData = extractJSON(rawText);

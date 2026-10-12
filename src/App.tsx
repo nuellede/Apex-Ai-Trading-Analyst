@@ -4,6 +4,7 @@ import { UploadArea } from './components/UploadArea';
 import { AnalysisReport } from './components/AnalysisReport';
 import { RiskCalculator } from './components/RiskCalculator';
 import { SeasonalityModule } from './components/SeasonalityModule';
+import { TradingViewWidget } from './components/TradingViewWidget';
 import { HistoryDrawer } from './components/HistoryDrawer';
 import { ChartLightbox } from './components/ChartLightbox';
 import { MismatchModal } from './components/MismatchModal';
@@ -18,12 +19,12 @@ import {
   Timeframe,
   TradingMode,
 } from './types/trading';
-import { AlertCircle, BarChart2, Smartphone, Download } from 'lucide-react';
+import { AlertCircle, BarChart2, Smartphone, Download, Activity } from 'lucide-react';
 
 const STORAGE_KEY = 'apex_ai_analysis_history';
 
 export default function App() {
-  const [activeTab, setActiveTab] = useState<'analyzer' | 'seasonality' | 'calculator'>('analyzer');
+  const [activeTab, setActiveTab] = useState<'analyzer' | 'livechart' | 'seasonality' | 'calculator'>('analyzer');
   const [currentMode, setCurrentMode] = useState<TradingMode>('INTRADAY');
 
   // Chart upload states
@@ -114,6 +115,25 @@ export default function App() {
     setActiveTab('analyzer');
   };
 
+  // Capture screenshot directly from live TradingView chart
+  const handleCaptureFromLiveChart = (
+    dataUrl: string,
+    instrument: InstrumentSymbol,
+    timeframe: string
+  ) => {
+    const newImg: ChartImagePayload = {
+      id: `capture-${Date.now()}`,
+      data: dataUrl,
+      mimeType: 'image/jpeg',
+      name: `${instrument} Live Chart Snapshot`,
+      timeframeLabel: `${timeframe} TF`,
+      previewUrl: dataUrl,
+    };
+    setImages([newImg]);
+    setSelectedInstrument(instrument);
+    setActiveTab('analyzer');
+  };
+
   // Run AI Multimodal Analysis
   const handleAnalyze = async () => {
     if (images.length === 0) return;
@@ -143,6 +163,16 @@ export default function App() {
       });
 
       if (!res.ok) {
+        if (res.status === 504) {
+          throw new Error(
+            'Gateway Timeout (504): Proses analisis di server melebihi batas waktu respon gateway. Sistem telah mengoptimalkan resolusi gambar untuk pemrosesan super cepat. Silakan klik "Run Apex Technical Analysis" sekali lagi.'
+          );
+        }
+        if (res.status === 503) {
+          throw new Error(
+            'Server AI Sedang Sibuk (503): Terjadi lonjakan trafik sementara dari Google AI. Silakan klik tombol analisis sekali lagi dalam 5-10 detik.'
+          );
+        }
         const errorData = await res.json().catch(() => ({}));
         throw new Error(errorData.error || `Server responded with status ${res.status}`);
       }
@@ -227,8 +257,25 @@ export default function App() {
           </div>
         )}
 
+        {/* Tab 1: Chart Analyzer */}
         {activeTab === 'analyzer' && (
           <div className="space-y-6">
+            {/* Live Chart Shortcut Callout */}
+            <div className="bg-slate-900/60 rounded-lg p-2.5 border border-slate-800 flex items-center justify-between gap-3 text-xs">
+              <div className="flex items-center gap-2 text-slate-300 font-mono">
+                <Activity className="w-4 h-4 text-emerald-400" />
+                <span>
+                  Ingin memantau pergerakan harga real-time? Buka <strong>Live Chart TradingView</strong> untuk melihat candlestick langsung dan screenshot ke AI dalam 1 klik.
+                </span>
+              </div>
+              <button
+                onClick={() => setActiveTab('livechart')}
+                className="px-3 py-1 rounded bg-slate-800 hover:bg-slate-700 text-cyan-300 border border-slate-700 font-mono text-[11px] whitespace-nowrap cursor-pointer transition-colors"
+              >
+                Buka Live Chart →
+              </button>
+            </div>
+
             {/* Upload & Configuration Section */}
             <UploadArea
               images={images}
@@ -285,6 +332,16 @@ export default function App() {
           </div>
         )}
 
+        {/* Tab 2: Live Chart TradingView with Direct Screenshot */}
+        {activeTab === 'livechart' && (
+          <TradingViewWidget
+            currentInstrument={selectedInstrument !== 'AUTO' ? selectedInstrument : 'XAUUSD'}
+            onSelectInstrument={(inst) => setSelectedInstrument(inst)}
+            onCaptureChart={handleCaptureFromLiveChart}
+          />
+        )}
+
+        {/* Tab 3: Seasonality & Macro Tendency */}
         {activeTab === 'seasonality' && (
           <SeasonalityModule
             currentInstrument={
@@ -293,6 +350,7 @@ export default function App() {
           />
         )}
 
+        {/* Tab 4: Risk Calculator */}
         {activeTab === 'calculator' && (
           <div className="space-y-4">
             <RiskCalculator
@@ -351,7 +409,7 @@ export default function App() {
         <div className="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-2">
           <span>Apex AI Trading Analyst · Quantitative Technical Architecture</span>
           <span className="text-[11px] text-slate-600">
-            PWA Standalone Ready · Android & iPhone Support
+            Live TradingView Stream · PWA Standalone Ready
           </span>
         </div>
       </footer>
